@@ -1,0 +1,21 @@
+# textdomain: mt_tg
+Re @1 "@2"=Отв. @1 "@2"
+FWD @1=Пересл. @1
+@1 joined Telegram Group.=@1 присоединился к группе Телеграм.
+@1 left Telegram Group.=@1 вышел из группы Телеграм
+Animation: @1x@2, @3 seconds=Анимация: @1x@2, @3 сек.
+Unknown Performer=Неизвестный исполнитель
+Audio: @1 by @2, @3 seconds=Аудио: @1 от @2, @3 сек.
+Audio: @1 seconds=Аудио @1 сек.
+Document: @1=Документ: @1
+Document=Документ
+Photo: @1x@2=Фото @1x@2
+Sticker: @1=Стикер: @1
+Sticker=Стикер
+Video: @1x@2, @3 seconds=Видео: @1x@2, @3 сек.
+Video Message: @1 seconds=Видео-сообщение: @1 сек.
+Voice Message: @1 seconds=Голосовое сообщение: @1 сек.
+Contact: @1, @2=Контакт: @1, @2
+Dice @1: @2=Игральный кубик: @1: @2
+Game "@1": @2=Игра "@1"
+Relay set. Messages will be relayed to Telegram group.=Мост запущен. Сообщения будут ретранслированы в Телеграм.

@@ -1,7 +1,6 @@
 local http = minetest.request_http_api and minetest.request_http_api()
-if not http then
-	error("Please allow mt_tg to access the HTTP API!")
-end
+assert(http ~= nil, "Please allow mt_tg to access the HTTP API!")
+
 local S             = minetest.get_translator("mt_tg")
 local storage       = minetest.get_mod_storage()
 
@@ -13,7 +12,7 @@ local token         = conf:get("mt_tg.token")
 if not token then
 	error("Missing mt_tg.token!")
 end
-local target     = tonumber(conf:get("mt_tg.target")) or error("Missing mt_tg.target!")
+local chat_id     = tonumber(conf:get("mt_tg.chat_id")) or error("Missing mt_tg.chat_id!")
 local api_server = conf:get("mt_tg.api_server")
 if not api_server or api_server == "" then
 	api_server = "https://api.telegram.org/"
@@ -32,12 +31,18 @@ local send_tg_join    = conf:get_bool("mt_tg.send_tg_join", true)
 local send_tg_leave   = conf:get_bool("mt_tg.send_tg_leave", true)
 local send_tg_cmds    = conf:get_bool("mt_tg.send_tg_cmds", false)
 local allow_tg_status = conf:get_bool("mt_tg.allow_tg_status", true)
+local allow_logins    = conf:get_bool("mt_tg.allow_logins", true)
 
+local text_color           = conf:get("mt_tg.text_color") or "#9bf"
 -- SETTINGS END --
 
 local my_id           = nil -- to be filled by async HTTP
+local authed_users = {}
 
-local function send_tg(msg)
+local function send_tg(msg, target)
+	if not target then
+		target = chat_id
+	end
 	local escaped_msg = tostring(msg)
 	escaped_msg = minetest.get_translated_string("en", escaped_msg) or msg
 	escaped_msg = minetest.strip_colors(escaped_msg)
@@ -62,11 +67,76 @@ function minetest.chat_send_all(msg)
 	orig_send_all(msg)
 end
 
+local orig_send_player = minetest.chat_send_player
+function minetest.chat_send_player(name, msg)
+	local rauth = table.key_value_swap(authed_users)
+	local user_id = rauth[name]
+	if user_id then
+		send_tg(msg, user_id)
+	end
+	orig_send_player(name, msg)
+end
+
+local function login(user_id, username, msg)
+	if msg == "" then
+		return "Missing parameters"
+	end
+	local name, password = msg:match("^(%S+) (.+)$")
+	if not (name and password) then
+		name = msg
+		password = ""
+	end
+	local auth = minetest.get_auth_handler()
+	local entry = auth.get_auth(name)
+	if not entry then
+		return "Unregistered player"
+	end
+	if minetest.check_password_entry(name, entry.password, password) then
+		authed_users[user_id] = name
+		minetest.log("action", "[mt_tg] "..username.." logged in as "..name)
+		return "Login successful"
+	else
+		minetest.log("action", "[mt_tg] "..username.." tried to login in as "..name.." unsuccessfully")
+		return "Incorrect password"
+	end
+end
+
+local logout = function(user_id)
+	if not authed_users[user_id] then
+		return "You are not logged in yet"
+	end
+	minetest.log("action", "[mt_tg] "..authed_users[user_id].." logged out")
+	authed_users[user_id] = nil
+	return "Logout successful"
+end
+
+local function cmd(user_id, msg)
+	local name = authed_users[user_id]
+	if not name then
+		return "You have to login to get able to run chatcommands. See /help"
+	end
+	local command, params = msg:match("^(%S+) (.+)$")
+	if not (command and params) then
+		command = msg
+		params = ""
+	end
+	local rcmd = minetest.registered_chatcommands[command]
+	if not rcmd then
+		return "Unknown chatcommand"
+	end
+	if rcmd.privs and not minetest.check_player_privs(name, rcmd.privs) then
+		return "Insufficient privileges"
+	end
+	local status, answer = rcmd.func(name, params)
+	return answer
+end
+
 local function parse_message(msg)
 	storage:set_int("tg_offset", msg.update_id)
 	if msg.message then -- Normal messages
 		local message = msg.message
-		if message.chat.id ~= target then return end
+		local chattype = message.chat.type
+		if message.chat.id ~= chat_id and chattype ~= "private" then return end
 		-- IGNORE USERS --
 		if (message.sender_chat and ignored_userids[message.sender_chat.id]) or ignored_userids[message.from.id] then
 			return
@@ -134,13 +204,41 @@ local function parse_message(msg)
 			-- MESSAGE TYPE DETECT --
 			local text
 			if message.text then -- Plain Text
-				if string.sub(message.text, 1, 7) == "/status" and allow_tg_status then
+				text = message.text
+				if string.sub(text, 1, 7) == "/status" and allow_tg_status then
 					send_tg(minetest.get_server_status())
+				end
+				if allow_logins and message.from and message.text:match("^/%S+") then
+					local user_id = message.from.id
+					local answer
+					local command, params = text:match("^/(%S+) (.+)")
+					if not (command and params) then
+						command = text:match("^/(%S+)")
+						params = ""
+					end
+					if command == "login" then
+						if chattype ~= "private" then
+							answer = "/!\\ Possible password leak!\n"..
+								"You should only use /login in bot's DMs!"
+						else
+							answer = login(user_id, message.from.username, params)
+						end
+					elseif command == "logout" then
+						answer = logout(user_id)
+					elseif command == "help" and params == "" then
+						answer = "You can login using your Minetest server account using /login command (in DM).\n"..
+							"Once logged in, you can run in-game commands using `/<command>`, e.g. `/me here`.\n"..
+							"You can logout using `/logout`. View all in-game commands: `/help -t`"
+					else
+						answer = cmd(user_id, command)
+					end
+					if answer then
+						send_tg(answer, (chattype == "private" and user_id))
+					end
 				end
 				if string.sub(message.text, 1, 1) == "/" and not send_tg_cmds then
 					return
 				end
-				text = message.text
 			else
 				if message.animation then -- Animations
 					text = "<" .. S("Animation: @1x@2, @3 seconds",
@@ -191,7 +289,7 @@ local function parse_message(msg)
 			end
 			-- MESSAGE DETECT END --
 			if text then
-				local msg = minetest.format_chat_message(disp_name .. "@TG", append_str .. text)
+				local msg = minetest.colorize(text_color, minetest.format_chat_message(disp_name .. "@TG", append_str .. text))
 				minetest.log("action", "TG CHAT: " ..
 					minetest.get_translated_string("en", msg))
 				orig_send_all(msg)

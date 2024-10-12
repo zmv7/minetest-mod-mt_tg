@@ -6,7 +6,7 @@ mt_tg.poll_interval (Polling Interval) int 5
 mt_tg.token (Telegram Bot Token) string
 
 # Group to be relayed, in its Chat ID.
-mt_tg.target (Telegram Group ID) int 0
+mt_tg.chat_id (Telegram Group ID) int 0
 
 # The URL of Telegram API Server.
 # Usually you don't have to change it, unless you want to use a local Bot API server.
@@ -33,3 +33,7 @@ mt_tg.send_tg_cmds (Telegram user commands) bool false
 # Note that it has to be /status@<botID> to use this command unless the bot is one of the administrators in the group.
 mt_tg.allow_tg_status (Telegram command /status) bool true
 
+# Whether to allow users to login using their Minetest server account run chatcommands.
+mt_tg.allow_logins (Allow logins from Telegram) bool true
+
+mt_tg.text_color (Text color of messages from Telegram) string #9bf
