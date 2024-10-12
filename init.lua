@@ -110,16 +110,12 @@ local logout = function(user_id)
 	return "Logout successful"
 end
 
-local function cmd(user_id, msg)
+local function cmd(user_id, command, params)
 	local name = authed_users[user_id]
 	if not name then
 		return "You have to login to get able to run chatcommands. See /help"
 	end
 	local command, params = msg:match("^(%S+) (.+)$")
-	if not (command and params) then
-		command = msg
-		params = ""
-	end
 	local rcmd = minetest.registered_chatcommands[command]
 	if not rcmd then
 		return "Unknown chatcommand"
@@ -230,7 +226,7 @@ local function parse_message(msg)
 							"Once logged in, you can run in-game commands using `/<command>`, e.g. `/me here`.\n"..
 							"You can logout using `/logout`. View all in-game commands: `/help -t`"
 					else
-						answer = cmd(user_id, command)
+						answer = cmd(user_id, command, params)
 					end
 					if answer then
 						send_tg(answer, (chattype == "private" and user_id))
