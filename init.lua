@@ -151,6 +151,7 @@ local function parse_message(msg)
 		if message.reply_to_message then
 			local rep_disp_name
 			local msg_short = message.reply_to_message.text or message.reply_to_message.caption or ""
+			if msg_short == "" then return end
 			if message.reply_to_message.sender_chat then -- Send on behalf of a chat
 				rep_disp_name = (message.reply_to_message.sender_chat.title
 					or ("Chn-" .. tostring(message.reply_to_message.sender_chat.id))) .. "@TG"
